@@ -60,7 +60,6 @@ with c1:
 
 with c2:
     st.subheader("📊 အရောင်းဇယား")
-    # Refresh & Search
     col_a, col_b = st.columns([1, 2])
     if col_a.button("🔄 Refresh"):
         st.rerun()
@@ -69,7 +68,7 @@ with c2:
     if not df.empty:
         view_df = df[df['Customer'].str.contains(search, case=False, na=False)] if search else df
         
-        # ဇယားပုံစံ
+        # ဇယားပုံစံ (မင်းကြိုက်တဲ့အတိုင်း မပြောင်းလဲပါ)
         st.dataframe(
             view_df,
             use_container_width=True,
@@ -77,7 +76,7 @@ with c2:
             hide_index=True
         )
 
-        # ပေါက်ဂဏန်းစစ်ခြင်း နှင့် အမြတ်/အရှုံး
+        # ပေါက်ဂဏန်းစစ်ခြင်း
         if win_num:
             winners = df[df['Number'] == win_num]
             total_out = winners['Amount'].sum() * za_rate
@@ -92,20 +91,32 @@ with c2:
     else:
         st.info("လက်ရှိတွင် စာရင်းမရှိသေးပါ။")
 
-# စာရင်းဖျက်ရန် အပိုင်း (တစ်ခုချင်းစီ)
+# စာရင်းဖျက်ရန် အပိုင်း (တစ်ခုချင်းစီဖျက်တာ သေချာအောင် ပြင်ထားသည်)
 if not df.empty:
     st.divider()
     st.subheader("🗑 စာရင်းဖျက်ရန်")
-    with st.expander("တစ်ခုချင်းစီ ဖျက်ရန် နှိပ်ပါ"):
+    with st.expander("တစ်ခုချင်းစီ ဖျက်ရန် ဤနေရာကိုနှိပ်ပါ"):
+        # အောက်က ကုဒ်အပိုင်းကို သေချာပြင်ထားတယ်
         for i, r in df.iloc[::-1].iterrows():
             col_x, col_y = st.columns([4, 1])
             col_x.write(f"👤 {r['Customer']} | 🔢 {r['Number']} | 💵 {r['Amount']} Ks")
+            
             if col_y.button("ဖျက်", key=f"del_{i}"):
-                requests.post(script_url, json={"action": "delete", "Customer": r['Customer'], "Number": str(r['Number']), "Time": r['Time']})
+                # JSON data ကို stringify လုပ်ပြီး ပို့ပေးရန် သေချာပြင်လိုက်ပြီ
+                del_payload = {
+                    "action": "delete", 
+                    "Customer": str(r['Customer']), 
+                    "Number": str(r['Number']).zfill(2), 
+                    "Time": str(r['Time'])
+                }
+                requests.post(script_url, json=del_payload)
+                st.success(f"{r['Customer']} ၏ စာရင်းကို ဖျက်လိုက်ပါပြီ။")
+                time.sleep(1)
                 st.rerun()
 
 # စာရင်းအားလုံးဖျက်ရန်
 st.sidebar.divider()
 if st.sidebar.button("⚠️ စာရင်းအားလုံးဖျက်မည်"):
     requests.post(script_url, json={"action": "clear_all"})
+    time.sleep(1)
     st.rerun()
