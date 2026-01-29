@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import datetime
 import requests
 
-# Page အပြင်အဆင်
 st.set_page_config(page_title="2D Agent Pro", page_icon="💰", layout="wide")
 
 # Secrets များယူခြင်း
@@ -18,31 +17,28 @@ try:
 except:
     df = pd.DataFrame(columns=["Customer", "Number", "Amount", "Time"])
 
-# --- SIDEBAR (ဒီနေရာမှာ ဖျက်တဲ့ခလုတ် ရှိပါတယ်) ---
-st.sidebar.header("⚙️ စီမံခန့်ခွဲရန်")
+# --- SIDEBAR ---
+st.sidebar.header("⚙️ Control Panel")
 
-# ၁။ ပေါက်ဂဏန်းစစ်ခြင်း
+# ပေါက်ဂဏန်းစစ်ခြင်း
 win_num = st.sidebar.text_input("🏆 ပေါက်ဂဏန်းတိုက်ရန်", max_chars=2)
 if win_num:
     winners = df[df['Number'] == win_num]
     if not winners.empty:
-        st.sidebar.success(f"ပေါက်သူ {len(winners)} ဦး ရှိပါသည်!")
-        st.sidebar.warning(f"လျော်ကြေးစုစုပေါင်း: {winners['Amount'].sum() * 80:,.0f} Ks")
+        st.sidebar.success(f"ပေါက်သူ {len(winners)} ဦး!")
+        st.sidebar.warning(f"လျော်ကြေး: {winners['Amount'].sum() * 80:,.0f} Ks")
 
 st.sidebar.divider()
 
-# ၂။ အကုန်ဖျက်သည့်ခလုတ် (Delete All)
-st.sidebar.subheader("⚠️ အန္တရာယ်ရှိဇုန်")
+# အကုန်ဖျက်သည့်ခလုတ်
 if st.sidebar.button("🗑 စာရင်းအားလုံးဖျက်မည်"):
-    # Password ခံထားပါတယ်
-    check_pw = st.sidebar.text_input("Password ရိုက်ပါ", type="password")
-    if check_pw == "1234":
-        with st.spinner('ဖျက်နေပါသည်...'):
-            requests.post(script_url, json={"action": "clear_all"})
-            st.rerun()
+    pw = st.sidebar.text_input("Password ရိုက်ပါ", type="password", key="all_del_pw")
+    if pw == "1234":
+        requests.post(script_url, json={"action": "clear_all"})
+        st.rerun()
 
 # --- MAIN UI ---
-st.title("💰 2D Professional Agent")
+st.title("💰 2D Agent Pro")
 
 col1, col2 = st.columns([1, 2])
 
@@ -59,7 +55,7 @@ with col1:
                 st.rerun()
 
 with col2:
-    st.subheader("🔍 စာရင်းရှာဖွေရန်")
+    st.subheader("🔍 စာရင်းဇယား နှင့် တစ်ခုချင်းဖျက်ရန်")
     search = st.text_input("🔎 နာမည်ဖြင့် ရှာရန်")
     
     display_df = df.copy()
@@ -67,4 +63,21 @@ with col2:
         display_df = display_df[display_df['Customer'].str.contains(search, case=False, na=False)]
     
     st.metric("စုစုပေါင်း ရောင်းရငွေ", f"{display_df['Amount'].sum():,.0f} Ks")
-    st.dataframe(display_df.iloc[::-1], use_container_width=True, height=400)
+
+    # တစ်ခုချင်းဖျက်ရန် List ပုံစံပြခြင်း
+    for index, row in display_df.iloc[::-1].iterrows():
+        # Expander လေးနဲ့ ပြထားလို့ ကြည့်ရတာ ရှင်းပါတယ်
+        with st.expander(f"👤 {row['Customer']} | 🔢 {row['Number']} | 💵 {row['Amount']} Ks"):
+            st.write(f"⏰ အချိန်: {row['Time']}")
+            # ခလုတ်ကို နာမည်နဲ့ Index တွဲပေးထားလို့ မှားမဖျက်နိုင်ပါဘူး
+            if st.button(f"🗑 ဤစာရင်းကို ဖျက်ရန်", key=f"del_{index}"):
+                del_payload = {
+                    "action": "delete",
+                    "Customer": row['Customer'],
+                    "Number": str(row['Number']),
+                    "Time": row['Time']
+                }
+                with st.spinner('ဖျက်နေပါသည်...'):
+                    res = requests.post(script_url, json=del_payload)
+                    st.success("ဖျက်ပြီးပါပြီ!")
+                    st.rerun()
