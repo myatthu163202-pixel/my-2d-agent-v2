@@ -4,23 +4,18 @@ from datetime import datetime
 import requests
 import time
 
-st.set_page_config(page_title="2D Agent Pro", layout="wide")
+st.set_page_config(page_title="2D Agent Pro Dashboard", layout="wide")
 
-# Secrets Link စစ်ဆေးခြင်း
-if "connections" not in st.secrets:
-    st.error("Secrets မရှိသေးပါ။ Settings > Secrets မှာ Link တွေအရင်ထည့်ပါ")
-    st.stop()
-
+# Link များ ချိတ်ဆက်ခြင်း
 sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
 script_url = st.secrets["connections"]["gsheets"]["script_url"]
 csv_url = sheet_url.replace('/edit', '/export?format=csv')
 
-# ဒေတာကို အတင်းအကျပ် အသစ်ဆွဲယူသည့် Function
+# ဒေတာကို အသစ်ရအောင် ဆွဲယူသည့် Function
 def load_data():
     try:
-        # Cache လုံးဝမကျန်အောင် timestamp ဖြင့် အမြဲပြောင်းလဲပေးသည်
-        fresh_url = f"{csv_url}&gid=0&cache={int(time.time())}"
-        data = pd.read_csv(fresh_url)
+        url = f"{csv_url}&cachebuster={int(time.time())}"
+        data = pd.read_csv(url)
         if not data.empty:
             data['Number'] = data['Number'].astype(str).str.zfill(2)
             data['Amount'] = pd.to_numeric(data['Amount'], errors='coerce').fillna(0)
@@ -28,59 +23,89 @@ def load_data():
     except:
         return pd.DataFrame(columns=["Customer", "Number", "Amount", "Time"])
 
-# App စတိုင်း ဒေတာအသစ်ယူမည်
 df = load_data()
 
 st.title("💰 2D Agent Pro Dashboard")
 
-# အရောင်းစုစုပေါင်း
-total_amt = df['Amount'].sum() if not df.empty else 0
-st.metric("💵 စုစုပေါင်းရောင်းရငွေ", f"{total_amt:,.0f} Ks")
+# Sidebar - Admin & ပေါက်ဂဏန်းစစ်ရန်
+st.sidebar.header("⚙️ Admin & Win Check")
+win_num = st.sidebar.text_input("🎰 ပေါက်ဂဏန်းရိုက်ပါ", max_chars=2)
+za_rate = st.sidebar.number_input("💰 ဇ (အဆ)", value=80)
 
-col1, col2 = st.columns([1, 2])
+# Dashboard - စုစုပေါင်းစာရင်းများ
+total_in = df['Amount'].sum() if not df.empty else 0
+st.info(f"💵 စုစုပေါင်းရောင်းရငွေ: {total_in:,.0f} Ks")
 
-with col1:
+c1, c2 = st.columns([1, 2])
+
+with c1:
     st.subheader("📝 စာရင်းသွင်းရန်")
     with st.form("entry_form", clear_on_submit=True):
         name = st.text_input("နာမည်")
-        num = st.text_input("ဂဏန်း", max_chars=2)
+        num = st.text_input("ဂဏန်း (00-99)", max_chars=2)
         amt = st.number_input("ငွေပမာဏ", min_value=100, step=100)
+        submit = st.form_submit_button("✅ သိမ်းဆည်းမည်")
         
-        if st.form_submit_button("✅ သိမ်းဆည်းမည်"):
+        if submit:
             if name and num:
                 payload = {
-                    "action": "insert",
-                    "Customer": name,
-                    "Number": str(num).zfill(2),
-                    "Amount": int(amt),
+                    "action": "insert", "Customer": name, 
+                    "Number": str(num).zfill(2), "Amount": int(amt), 
                     "Time": datetime.now().strftime("%I:%M %p")
                 }
-                res = requests.post(script_url, json=payload)
-                if res.status_code == 200:
-                    st.success("သိမ်းပြီးပါပြီ။")
-                    time.sleep(2) # Google ဘက်က Update ဖြစ်အောင် ခဏစောင့်ပေးသည်
-                    st.rerun()
-            else:
-                st.warning("အချက်အလက် ပြည့်စုံအောင် ဖြည့်ပါ")
+                requests.post(script_url, json=payload)
+                st.success("သိမ်းပြီးပါပြီ။")
+                time.sleep(1)
+                st.rerun()
 
-with col2:
+with c2:
     st.subheader("📊 အရောင်းဇယား")
-    # Manual Refresh ခလုတ်
-    if st.button("🔄 စာရင်းအသစ်ပြန်ကြည့်မည်"):
+    # Refresh & Search
+    col_a, col_b = st.columns([1, 2])
+    if col_a.button("🔄 Refresh"):
         st.rerun()
+    search = col_b.text_input("🔎 နာမည်ဖြင့်ရှာရန်", placeholder="နာမည်ရိုက်ပါ...")
 
     if not df.empty:
-        # Search Feature
-        search = st.text_input("🔎 နာမည်ဖြင့်ရှာရန်")
-        filtered_df = df[df['Customer'].str.contains(search, case=False, na=False)] if search else df
+        view_df = df[df['Customer'].str.contains(search, case=False, na=False)] if search else df
         
-        # ဇယားပုံစံအစစ် (Selection ပါဝင်သည်)
-        # ဇယားမပေါ်ရခြင်းမှာ column configuration လွဲနေနိုင်၍ အခြေခံအတိုင်း အရင်ပြမည်
+        # ဇယားပုံစံ
         st.dataframe(
-            filtered_df,
+            view_df,
             use_container_width=True,
+            column_config={"Amount": st.column_config.NumberColumn("ငွေပမာဏ", format="%d Ks")},
             hide_index=True
         )
-        
-        # တစ်ခုချင်းစီဖျက်ရန် Expanders
-        st.divider()
+
+        # ပေါက်ဂဏန်းစစ်ခြင်း နှင့် အမြတ်/အရှုံး
+        if win_num:
+            winners = df[df['Number'] == win_num]
+            total_out = winners['Amount'].sum() * za_rate
+            balance = total_in - total_out
+            
+            st.divider()
+            st.subheader("📈 ရလဒ်အကျဉ်းချုပ်")
+            k1, k2, k3 = st.columns(3)
+            k1.metric("🏆 ပေါက်သူ", f"{len(winners)} ဦး")
+            k2.metric("💸 လျော်ကြေး", f"{total_out:,.0f} Ks")
+            k3.metric("💹 အမြတ်/အရှုံး", f"{balance:,.0f} Ks", delta=balance)
+    else:
+        st.info("လက်ရှိတွင် စာရင်းမရှိသေးပါ။")
+
+# စာရင်းဖျက်ရန် အပိုင်း (တစ်ခုချင်းစီ)
+if not df.empty:
+    st.divider()
+    st.subheader("🗑 စာရင်းဖျက်ရန်")
+    with st.expander("တစ်ခုချင်းစီ ဖျက်ရန် နှိပ်ပါ"):
+        for i, r in df.iloc[::-1].iterrows():
+            col_x, col_y = st.columns([4, 1])
+            col_x.write(f"👤 {r['Customer']} | 🔢 {r['Number']} | 💵 {r['Amount']} Ks")
+            if col_y.button("ဖျက်", key=f"del_{i}"):
+                requests.post(script_url, json={"action": "delete", "Customer": r['Customer'], "Number": str(r['Number']), "Time": r['Time']})
+                st.rerun()
+
+# စာရင်းအားလုံးဖျက်ရန်
+st.sidebar.divider()
+if st.sidebar.button("⚠️ စာရင်းအားလုံးဖျက်မည်"):
+    requests.post(script_url, json={"action": "clear_all"})
+    st.rerun()
