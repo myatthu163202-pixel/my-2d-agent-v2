@@ -3,15 +3,15 @@ import pandas as pd
 from datetime import datetime
 import requests
 
-# Page Configuration
+# Page configuration
 st.set_page_config(page_title="2D Professional Agent", page_icon="💰", layout="wide")
 
-# Link များ ချိတ်ဆက်ခြင်း
+# Secrets များမှ Link များရယူခြင်း
 sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
 script_url = st.secrets["connections"]["gsheets"]["script_url"]
 csv_url = sheet_url.replace('/edit', '/export?format=csv')
 
-# ဒေတာဖတ်ခြင်း (Cachebuster ပါမှ ဖျက်လိုက်ရင် ချက်ချင်းပျောက်မှာပါ)
+# ဒေတာဖတ်ခြင်း (Cachebuster ပါမှ ဖျက်လိုက်ရင် App မှာ ချက်ချင်းပျောက်မှာပါ)
 try:
     df = pd.read_csv(f"{csv_url}&cachebuster={datetime.now().timestamp()}")
     df['Number'] = df['Number'].astype(str).str.zfill(2)
@@ -27,32 +27,31 @@ st.sidebar.subheader("📊 Profit & Loss")
 comm_rate = st.sidebar.slider("ကော်မရှင် (%)", 0, 20, 10)
 win_num = st.sidebar.text_input("🏆 ပေါက်ဂဏန်းရိုက်ပါ", max_chars=2, placeholder="ဥပမာ- 05")
 
-total_sales = df['Amount'].sum()
-net_sales = total_sales * (1 - comm_rate/100)
+if not df.empty:
+    total_sales = df['Amount'].sum()
+    net_sales = total_sales * (1 - comm_rate/100)
+    st.sidebar.write(f"စုစုပေါင်းရောင်းရငွေ: **{total_sales:,.0f}** Ks")
+    st.sidebar.write(f"ကော်မရှင်နုတ်ပြီး: **{net_sales:,.0f}** Ks")
 
-st.sidebar.write(f"စုစုပေါင်းရောင်းရငွေ: {total_sales:,.0f} Ks")
-st.sidebar.write(f"ကော်မရှင်နုတ်ပြီး: {net_sales:,.0f} Ks")
-
-if win_num:
-    winners = df[df['Number'] == win_num]
-    total_payout = winners['Amount'].sum() * 80
-    profit_loss = net_sales - total_payout
-    
-    st.sidebar.divider()
-    st.sidebar.write(f"လျော်ကြေးစုစုပေါင်း: {total_payout:,.0f} Ks")
-    if profit_loss >= 0:
-        st.sidebar.success(f"ယနေ့အမြတ်: +{profit_loss:,.0f} Ks")
-    else:
-        st.sidebar.error(f"ယနေ့အရှုံး: {profit_loss:,.0f} Ks")
+    if win_num:
+        winners = df[df['Number'] == win_num]
+        total_payout = winners['Amount'].sum() * 80
+        profit_loss = net_sales - total_payout
+        st.sidebar.divider()
+        st.sidebar.write(f"လျော်ကြေးစုစုပေါင်း: **{total_payout:,.0f}** Ks")
+        if profit_loss >= 0:
+            st.sidebar.success(f"ယနေ့အမြတ်: **+{profit_loss:,.0f}** Ks")
+        else:
+            st.sidebar.error(f"ယနေ့အရှုံး: **{profit_loss:,.0f}** Ks")
 
 st.sidebar.divider()
 
-# ၂။ အကုန်ဖျက်သည့်ခလုတ် (Delete All)
+# ၂။ အကုန်ဖျက်သည့်ခလုတ် (Password: 1632022)
 st.sidebar.subheader("⚠️ အန္တရာယ်ရှိဇုန်")
-del_pw = st.sidebar.text_input("Admin Password ရိုက်ပါ", type="password", key="admin_pw")
+del_pw = st.sidebar.text_input("Admin Password ရိုက်ပါ", type="password")
 if st.sidebar.button("🗑 စာရင်းအားလုံး အကုန်ဖျက်မည်"):
-    if del_pw == "1632022": # သင်တောင်းဆိုထားသော Password သို့ ပြောင်းလဲထားပါသည်
-        with st.spinner('စာရင်းအားလုံးကို အကုန်ပြောင်အောင် ဖျက်နေပါသည်...'):
+    if del_pw == "1632022":
+        with st.spinner('စာရင်းအားလုံးကို ဖျက်နေပါသည်...'):
             requests.post(script_url, json={"action": "clear_all"})
             st.rerun()
     else:
@@ -83,7 +82,6 @@ with col2:
     if search_query:
         display_df = display_df[display_df['Customer'].str.contains(search_query, case=False, na=False)]
     
-    # စာရင်းတစ်ခုချင်းစီကို ဖျက်ရန်
     if not display_df.empty:
         for index, row in display_df.iloc[::-1].iterrows():
             with st.expander(f"👤 {row['Customer']} | 🔢 {row['Number']} | 💵 {row['Amount']} Ks"):
