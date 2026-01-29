@@ -17,10 +17,11 @@ def load_data():
         url = f"{csv_url}&cachebuster={int(time.time())}"
         data = pd.read_csv(url)
         if not data.empty:
-            # Column အမည်များ ရှေ့နောက် space ပါနေပါက ဖယ်ထုတ်ရန်
             data.columns = data.columns.str.strip()
             data['Number'] = data['Number'].astype(str).str.zfill(2)
             data['Amount'] = pd.to_numeric(data['Amount'], errors='coerce').fillna(0)
+            data['Customer'] = data['Customer'].astype(str)
+            data['Time'] = data['Time'].astype(str)
         return data
     except:
         return pd.DataFrame(columns=["Customer", "Number", "Amount", "Time"])
@@ -51,13 +52,15 @@ with c1:
         if submit:
             if name and num:
                 payload = {
-                    "action": "insert", "Customer": name.strip(), 
-                    "Number": str(num).zfill(2), "Amount": int(amt), 
+                    "action": "insert", 
+                    "Customer": name.strip(), 
+                    "Number": str(num).zfill(2), 
+                    "Amount": int(amt), 
                     "Time": datetime.now().strftime("%I:%M %p")
                 }
                 requests.post(script_url, json=payload)
                 st.success("သိမ်းပြီးပါပြီ။")
-                time.sleep(1.5)
+                time.sleep(1)
                 st.rerun()
 
 with c2:
@@ -81,7 +84,6 @@ with c2:
             winners = df[df['Number'] == win_num]
             total_out = winners['Amount'].sum() * za_rate
             balance = total_in - total_out
-            
             st.divider()
             st.subheader("📈 ရလဒ်အကျဉ်းချုပ်")
             k1, k2, k3 = st.columns(3)
@@ -91,7 +93,7 @@ with c2:
     else:
         st.info("လက်ရှိတွင် စာရင်းမရှိသေးပါ။")
 
-# တစ်ခုချင်းဖျက်တာ သေချာပေါက် ပျက်အောင် ပြင်ဆင်ထားသည့်အပိုင်း
+# တစ်ခုချင်းဖျက်တာကို အလုပ်လုပ်စေမည့် အဆင့်မြင့်ပြင်ဆင်မှု
 if not df.empty:
     st.divider()
     st.subheader("🗑 စာရင်းဖျက်ရန်")
@@ -101,19 +103,21 @@ if not df.empty:
             col_x.write(f"👤 {r['Customer']} | 🔢 {r['Number']} | 💵 {r['Amount']} Ks")
             
             if col_y.button("ဖျက်", key=f"del_{i}"):
-                # ဒေတာတွေကို string ပုံစံ အတိအကျပြောင်းပြီး ပို့ပေးရန်
+                # ဒေတာတွေကို JSON String ပုံစံ အတိအကျ ပြောင်းပို့ခြင်း
                 del_payload = {
                     "action": "delete", 
                     "Customer": str(r['Customer']).strip(), 
                     "Number": str(r['Number']).zfill(2), 
                     "Time": str(r['Time']).strip()
                 }
-                # Request ပို့ပြီး ခဏစောင့်ရန်
-                res = requests.post(script_url, json=del_payload)
-                if res.status_code == 200:
-                    st.success(f"ဖျက်ပြီးပါပြီ။ ခဏစောင့်ပါ...")
-                    time.sleep(2) # Google Sheet ဘက်မှာ ပျက်ချိန်စောင့်ပေးခြင်း
+                # Request ပို့လိုက်သည်
+                try:
+                    res = requests.post(script_url, json=del_payload)
+                    st.toast(f"ဖျက်ခိုင်းလိုက်ပါပြီ။ စောင့်ပါ...")
+                    time.sleep(2) # Google Sheet ကို Update ဖြစ်ဖို့ အချိန်ပေးရပါမယ်
                     st.rerun()
+                except:
+                    st.error("Error: ဖျက်လို့မရပါ")
 
 # စာရင်းအားလုံးဖျက်ရန်
 st.sidebar.divider()
