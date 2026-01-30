@@ -11,7 +11,6 @@ sheet_url = st.secrets["connections"]["gsheets"]["spreadsheet"]
 script_url = st.secrets["connections"]["gsheets"]["script_url"]
 csv_url = sheet_url.replace('/edit', '/export?format=csv')
 
-# ဒေတာကို အသစ်ရအောင် ဆွဲယူသည့် Function
 def load_data():
     try:
         url = f"{csv_url}&cachebuster={int(time.time())}"
@@ -20,8 +19,6 @@ def load_data():
             data.columns = data.columns.str.strip()
             data['Number'] = data['Number'].astype(str).str.zfill(2)
             data['Amount'] = pd.to_numeric(data['Amount'], errors='coerce').fillna(0)
-            data['Customer'] = data['Customer'].astype(str)
-            data['Time'] = data['Time'].astype(str)
         return data
     except:
         return pd.DataFrame(columns=["Customer", "Number", "Amount", "Time"])
@@ -30,7 +27,6 @@ df = load_data()
 
 st.title("💰 2D Agent Pro Dashboard")
 
-# Admin Control
 st.sidebar.header("⚙️ Admin & Win Check")
 win_num = st.sidebar.text_input("🎰 ပေါက်ဂဏန်းရိုက်ပါ", max_chars=2)
 za_rate = st.sidebar.number_input("💰 ဇ (အဆ)", value=80)
@@ -79,33 +75,25 @@ with c2:
             k2.metric("💸 လျော်ကြေး", f"{total_out:,.0f} Ks")
             k3.metric("💹 အမြတ်/အရှုံး", f"{balance:,.0f} Ks", delta=balance)
 
-# တစ်ခုချင်းဖျက်ရန်အပိုင်း (Error ကင်းအောင် အသေအချာ ပြင်ဆင်ထားသည်)
+# တစ်ခုချင်းဖျက်ရန် (Row Index ကို တိုက်ရိုက်ပို့သော စနစ်)
 if not df.empty:
     st.divider()
     st.subheader("🗑 စာရင်းဖျက်ရန်")
     with st.expander("တစ်ခုချင်းစီ ဖျက်ရန် ဤနေရာကိုနှိပ်ပါ"):
-        # အောက်က ကုဒ်က ဒေတာအဟောင်းနဲ့ အသစ်လွဲမသွားအောင် index ပြန်စီထားသည်
-        for i, r in df.iloc[::-1].iterrows():
+        for i in range(len(df)-1, -1, -1):
+            r = df.iloc[i]
             col_x, col_y = st.columns([4, 1])
             col_x.write(f"👤 {r['Customer']} | 🔢 {r['Number']} | 💵 {r['Amount']} Ks")
             
             if col_y.button("ဖျက်", key=f"del_{i}"):
-                del_payload = {
-                    "action": "delete", 
-                    "Customer": str(r['Customer']).strip(), 
-                    "Number": str(r['Number']).zfill(2), 
-                    "Time": str(r['Time']).strip()
-                }
-                res = requests.post(script_url, json=del_payload)
-                # Google ဘက်က "Deleted" လို့ ပြန်ပို့တာနဲ့ ချက်ချင်း Refresh လုပ်မည်
-                if res.status_code == 200:
-                    st.toast(f"{r['Customer']} ၏ စာရင်းကို ဖျက်လိုက်ပါပြီ။")
-                    time.sleep(2)
-                    st.rerun()
+                # Row index ပို့လိုက်သည်
+                requests.post(script_url, json={"action": "delete", "row_index": i + 1})
+                st.toast(f"ဖျက်ပြီးပါပြီ။")
+                time.sleep(1.5)
+                st.rerun()
 
-# စုစုပေါင်းဖျက်ရန်
 st.sidebar.divider()
 if st.sidebar.button("⚠️ စာရင်းအားလုံးဖျက်မည်"):
     requests.post(script_url, json={"action": "clear_all"})
-    time.sleep(2)
+    time.sleep(1.5)
     st.rerun()
