@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 import requests
 import time
 
@@ -44,13 +44,17 @@ with c1:
         amt = st.number_input("ငွေပမာဏ", min_value=100, step=100)
         if st.form_submit_button("✅ သိမ်းဆည်းမည်"):
             if name and num:
+                # --- မြန်မာစံတော်ချိန် (GMT+6:30) တွက်ချက်ခြင်း ---
+                tz_mm = timezone(timedelta(hours=6, minutes=30))
+                now_mm = datetime.now(tz_mm).strftime("%I:%M %p")
+                
                 payload = {
                     "action": "insert", "Customer": name.strip(), 
                     "Number": str(num).zfill(2), "Amount": int(amt), 
-                    "Time": datetime.now().strftime("%I:%M %p")
+                    "Time": now_mm
                 }
                 requests.post(script_url, json=payload)
-                st.success("သိမ်းပြီးပါပြီ။")
+                st.success(f"သိမ်းပြီးပါပြီ။ အချိန် - {now_mm}")
                 time.sleep(1.5)
                 st.rerun()
 
@@ -65,7 +69,6 @@ with c2:
         view_df = df[df['Customer'].str.contains(search, case=False, na=False)] if search else df
         st.dataframe(view_df, use_container_width=True, hide_index=True)
 
-        # --- ပေါက်သူစာရင်း နှင့် လျော်ကြေးတွက်ချက်ခြင်း ---
         if win_num:
             winners = df[df['Number'] == win_num].copy()
             total_out = winners['Amount'].sum() * za_rate
@@ -80,9 +83,7 @@ with c2:
             
             if not winners.empty:
                 st.write("🎊 **ပေါက်သူများစာရင်း နှင့် လျော်ရမည့်ငွေ -**")
-                # လျော်ကြေးကော်လံအသစ် ထည့်တွက်ပြခြင်း
                 winners['လျော်ရမည့်ငွေ'] = winners['Amount'] * za_rate
-                # ပြချင်တဲ့ column တွေကိုပဲ ရွေးပြမယ်
                 st.table(winners[['Customer', 'Number', 'Amount', 'လျော်ရမည့်ငွေ']])
     else:
         st.info("လက်ရှိတွင် စာရင်းမရှိသေးပါ။")
@@ -95,7 +96,7 @@ if not df.empty:
         for i in range(len(df)-1, -1, -1):
             r = df.iloc[i]
             col_x, col_y = st.columns([4, 1])
-            col_x.write(f"👤 {r['Customer']} | 🔢 {r['Number']} | 💵 {r['Amount']} Ks")
+            col_x.write(f"👤 {r['Customer']} | 🔢 {r['Number']} | 💵 {r['Amount']} Ks | 🕒 {r['Time']}")
             
             if col_y.button("ဖျက်", key=f"del_{i}"):
                 requests.post(script_url, json={"action": "delete", "row_index": i + 1})
