@@ -1,4 +1,0 @@
-streamlit
-gspread
-gspread-dataframe
-pandas
